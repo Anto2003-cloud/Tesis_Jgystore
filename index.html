@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Gystore | Panel Profesional</title>
+    <title>Gystore | Panel de Control</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --primary: #3b82f6; --dark: #0f172a; --bg: #f8fafc; }
@@ -27,7 +27,7 @@
 
 <div class="sidebar">
     <h2>GYSTORE</h2>
-    <p>Sistema Adaptativo</p>
+    <p>Sistema de Gestión Adaptativa</p>
     <hr style="opacity: 0.2;">
     <button class="nav-btn" onclick="showSection('dash')">📊 Dashboard</button>
     <button class="nav-btn" onclick="showSection('inv')">📦 Inventario</button>
@@ -40,9 +40,9 @@
     <div id="section-dash">
         <h1>Dashboard General</h1>
         <div class="card-grid">
-            <div class="card"><h3>Tasa BCV</h3><h2 id="tasaText" style="color:var(--primary)">Cargando...</h2></div>
-            <div class="card"><h3>Total Productos</h3><h2 id="totalProd">0</h2></div>
-            <div class="card"><h3>Alertas</h3><h2 id="alertaCount" style="color:red">0</h2></div>
+            <div class="card"><h3>TASA OFICIAL BCV</h3><h2 id="tasaText" style="color:var(--primary)">-- Bs.</h2></div>
+            <div class="card"><h3>TOTAL PRODUCTOS</h3><h2 id="totalProd">0</h2></div>
+            <div class="card"><h3>ALERTAS CRÍTICAS</h3><h2 id="alertaCount" style="color:red">0</h2></div>
         </div>
         <div class="card" style="max-width: 500px;">
             <h3>Distribución de Stock</h3>
@@ -51,13 +51,15 @@
     </div>
 
     <div id="section-inv" style="display:none">
-        <h1>Lista de Inventario</h1>
+        <h1>Lista de Mercancía</h1>
         <div class="card">
             <table>
                 <thead>
-                    <tr><th>Producto</th><th>Stock</th><th>Ref. USD</th><th>Precio Bs.</th><th>Estado</th></tr>
+                    <tr><th>PRODUCTO</th><th>STOCK</th><th>REF. USD</th><th>PRECIO BS.</th><th>ESTADO</th></tr>
                 </thead>
-                <tbody id="tablaBody"></tbody>
+                <tbody id="tablaBody">
+                    <tr><td colspan="5" style="text-align:center">Cargando datos...</td></tr>
+                </tbody>
             </table>
         </div>
     </div>
@@ -67,11 +69,11 @@
     <div class="modal-content">
         <h3>Registrar Nuevo Producto</h3>
         <form action="/crear-producto-web" method="post">
-            <input type="text" name="nombre" placeholder="Nombre del Producto" required>
+            <input type="text" name="nombre" placeholder="Nombre (Ej: Mouse)" required>
             <input type="number" step="0.01" name="costo" placeholder="Costo en USD" required>
             <input type="number" name="margen" value="30" placeholder="Margen %">
-            <input type="number" name="stock" placeholder="Stock Inicial" required>
-            <button type="submit" class="btn-add" style="float:none; width:100%; margin-top:10px;">Guardar en Sistema</button>
+            <input type="number" name="stock" placeholder="Cantidad Inicial" required>
+            <button type="submit" class="btn-add" style="float:none; width:100%; margin-top:10px;">Guardar Producto</button>
             <button type="button" onclick="document.getElementById('modalForm').style.display='none'" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color: #64748b;">Cancelar</button>
         </form>
     </div>
@@ -87,22 +89,27 @@
 
     async function cargarDatos() {
         try {
-            const response = await fetch('/productos/');
+            // Quitamos la barra final para evitar el error 405
+            const response = await fetch('/productos');
             if (!response.ok) throw new Error("Error en servidor");
+            
             const res = await response.json();
             
+            // Verificamos que res.productos exista, sino enviamos lista vacía
             const productos = res.productos || [];
-            const tasa = res.tasa_actual || 36.50;
+            const tasa = res.tasa_actual || 0;
 
-            document.getElementById('tasaText').innerText = tasa.toFixed(2) + " Bs.";
+            // Actualizar Tarjetas
+            document.getElementById('tasaText').innerText = tasa > 0 ? tasa.toFixed(2) + " Bs." : "-- Bs.";
             document.getElementById('totalProd').innerText = res.total_productos || 0;
             document.getElementById('alertaCount').innerText = res.alertas || 0;
 
+            // Actualizar Tabla
             const tbody = document.getElementById('tablaBody');
             tbody.innerHTML = '';
             
             if (productos.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">No hay productos registrados</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">No hay mercancía registrada.</td></tr>';
             } else {
                 productos.forEach(p => {
                     tbody.innerHTML += `<tr>
@@ -110,11 +117,12 @@
                         <td>${p.stock}</td>
                         <td>$${p.ref_usd.toFixed(2)}</td>
                         <td style="color:var(--primary); font-weight:bold;">${p.precio_bs.toFixed(2)} Bs.</td>
-                        <td>${p.estado}</td>
+                        <td><span style="padding:4px 8px; border-radius:5px; background:#f1f5f9; font-size:12px">${p.estado}</span></td>
                     </tr>`;
                 });
             }
             
+            // Gráfica de Stock
             if (productos.length > 0) {
                 const ctx = document.getElementById('stockChart').getContext('2d');
                 if (miGrafica) { miGrafica.destroy(); }
@@ -126,15 +134,18 @@
                             data: productos.map(p => p.stock), 
                             backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'] 
                         }]
-                    }
+                    },
+                    options: { responsive: true }
                 });
             }
         } catch (error) {
-            console.error("Error:", error);
+            console.error("Error en la carga:", error);
         }
     }
 
+    // Carga inicial
     cargarDatos();
+    // Auto-actualizar cada 30 segundos
     setInterval(cargarDatos, 30000);
 </script>
 </body>
