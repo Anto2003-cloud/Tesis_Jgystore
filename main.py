@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Form
+from fastapi import FastAPI, Depends, Form, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -32,14 +32,17 @@ def get_db():
         db.close()
 
 async def obtener_tasa_nube():
-    urls = ["https://ve.dolarapi.com/v1/dolares/oficial"]
+    # Usamos la API de DolarApi para Venezuela (BCV)
+    url = "https://ve.dolarapi.com/v1/dolares/oficial"
     async with httpx.AsyncClient(timeout=10.0) as client:
-        for url in urls:
-            try:
-                r = await client.get(url)
-                if r.status_code == 200:
-                    return float(r.json().get('promedio') or r.json().get('price'))
-            except: continue
+        try:
+            r = await client.get(url)
+            if r.status_code == 200:
+                datos = r.json()
+                # Intentamos obtener el valor del promedio o price
+                return float(datos.get('promedio') or datos.get('price'))
+        except Exception as e:
+            print(f"Error obteniendo tasa: {e}")
     return None
 
 @app.get("/")
@@ -50,32 +53,43 @@ def ver_panel_control():
 async def login(username: str = Form(...), password: str = Form(...)):
     if username == USUARIO_ADMIN and password == CLAVE_ADMIN:
         return {"status": "success"}
-    raise HTTPException(status_code=401)
+    raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
 @app.get("/productos/")
 async def obtener_productos(db: Session = Depends(get_db)):
+    # 1. Intentamos actualizar la tasa desde la nube
     tasa_api = await obtener_tasa_nube()
     if tasa_api:
-        nueva = models.Tasa(valor=tasa_api, fuente="BCV")
-        db.add(nueva); db.commit()
+        nueva_tasa = models.Tasa(valor=tasa_api, fuente="BCV", fecha=datetime.now())
+        db.add(nueva_tasa)
+        db.commit()
     
+    # 2. Buscamos la última tasa guardada o usamos una por defecto
     tasa_db = db.query(models.Tasa).order_by(models.Tasa.id.desc()).first()
     tasa = tasa_db.valor if tasa_db else 36.50
     
+    # 3. Consultamos los productos
     productos = db.query(models.Producto).all()
     res = []
     for p in productos:
-        pv_usd = p.costo_usd + (p.costo_usd * p.margen_ganancia / 100)
+        # Cálculo del precio adaptativo (Costo + Margen)
+        pv_usd = p.costo_usd + (p.costo_usd * (p.margen_ganancia / 100))
         res.append({
             "id": p.id,
             "nombre": p.nombre,
             "stock": p.stock_actual,
-            "precio_bs": round(pv_usd * tasa, 2),
             "ref_usd": round(pv_usd, 2),
-            "estado": "✅ DISPONIBLE" if p.stock_actual > p.stock_minimo else "❗ RECOMPRAR",
-            "tasa": tasa
+            "precio_bs": round(pv_usd * tasa, 2),
+            "estado": "✅ DISPONIBLE" if p.stock_actual > p.stock_minimo else "❗ RECOMPRAR"
         })
-    return res
+    
+    # Enviamos tanto la lista como la tasa para que el JS no falle
+    return {
+        "productos": res,
+        "tasa_actual": tasa,
+        "total_productos": len(res),
+        "alertas": len([p for p in productos if p.stock_actual <= p.stock_minimo])
+    }
 
 @app.post("/crear-producto-web")
 async def crear_web(
@@ -86,8 +100,14 @@ async def crear_web(
     db: Session = Depends(get_db)
 ):
     nuevo = models.Producto(
-        nombre=nombre, categoria="General", costo_usd=costo, 
-        margen_ganancia=margen, stock_actual=stock, stock_minimo=5
+        nombre=nombre, 
+        categoria="General", 
+        costo_usd=costo, 
+        margen_ganancia=margen, 
+        stock_actual=stock, 
+        stock_minimo=5
     )
-    db.add(nuevo); db.commit()
+    db.add(nuevo)
+    db.commit()
+    # Redirigimos al inicio para que el usuario vea el cambio de inmediato
     return RedirectResponse(url="/", status_code=303)
