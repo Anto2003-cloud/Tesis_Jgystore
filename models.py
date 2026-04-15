@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, DateTime
 from database import Base
+from datetime import datetime
 
 class Producto(Base):
     __tablename__ = "productos"
@@ -11,10 +12,10 @@ class Producto(Base):
     margen_ganancia = Column(Float, nullable=False)
     stock_actual = Column(Integer, default=0)
     stock_minimo = Column(Integer, default=0)
+    fecha_registro = Column(DateTime, default=datetime.utcnow)
 
-class Tasa(Base):
-    __tablename__ = "tasas"
+class TasaCambio(Base):
+    __tablename__ = "tasa_cambio"
     id = Column(Integer, primary_key=True, index=True)
-    fuente = Column(String, default="Binance P2P")
     valor = Column(Float, nullable=False)
-    fecha = Column(DateTime, default=datetime.utcnow)
+    fecha_actualizacion = Column(DateTime, default=datetime.utcnow)
