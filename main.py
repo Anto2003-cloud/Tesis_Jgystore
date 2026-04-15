@@ -1,16 +1,20 @@
-from fastapi import FastAPI, Depends, Form, Request
+from fastapi import FastAPI, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 import models
 from database import SessionLocal, engine
+from typing import List
 
-# ESTA LÍNEA CREA LAS TABLAS EN SUPABASE AUTOMÁTICAMENTE
+# Crea las tablas en Neon automáticamente si no existen
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+# Configuración de plantillas
 templates = Jinja2Templates(directory="templates")
 
+# Dependencia para obtener la base de datos
 def get_db():
     db = SessionLocal()
     try:
@@ -19,30 +23,59 @@ def get_db():
         db.close()
 
 @app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request, db: Session = Depends(get_db)):
+def read_root(request: Request, db: Session = Depends(get_db)):
     productos = db.query(models.Producto).all()
-    tasa_obj = db.query(models.TasaCambio).order_by(models.TasaCambio.id.desc()).first()
-    valor_tasa = tasa_obj.valor if tasa_obj else 36.0
-    return templates.TemplateResponse("index.html", {"request": request, "productos": productos, "tasa": valor_tasa})
+    tasa_obj = db.query(models.TasaDolar).first()
+    tasa = tasa_obj.valor if tasa_obj else 0.0
+    
+    # Calculamos los precios en bolívares para cada producto
+    for producto in productos:
+        producto.precio_bs = producto.precio_dolar * tasa
+        
+    return templates.TemplateResponse("index.html", {
+        "request": request, 
+        "productos": productos, 
+        "tasa": tasa
+    })
 
 @app.post("/agregar")
-async def agregar(nombre:str=Form(...), categoria:str=Form(...), costo:float=Form(...), margen:float=Form(...), stock:int=Form(...), stock_min:int=Form(...), db:Session=Depends(get_db)):
-    nuevo = models.Producto(nombre=nombre, categoria=categoria, costo_usd=costo, margen_ganancia=margen, stock_actual=stock, stock_minimo=stock_min)
-    db.add(nuevo)
+def agregar_producto(
+    nombre: str = Form(...),
+    categoria: str = Form(...),
+    costo: float = Form(...),
+    margen: float = Form(...),
+    stock: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    # Cálculo simple del precio en dólares basado en margen
+    precio_dolar = costo * (1 + (margen / 100))
+    nuevo_producto = models.Producto(
+        nombre=nombre,
+        categoria=categoria,
+        costo=costo,
+        margen=margen,
+        precio_dolar=precio_dolar,
+        stock=stock
+    )
+    db.add(nuevo_producto)
     db.commit()
     return RedirectResponse(url="/", status_code=303)
 
-@app.post("/tasa")
-async def actualizar_tasa(valor: float = Form(...), db: Session = Depends(get_db)):
-    nueva = models.TasaCambio(valor=valor)
-    db.add(nueva)
+@app.post("/actualizar_tasa")
+def actualizar_tasa(tasa: float = Form(...), db: Session = Depends(get_db)):
+    tasa_obj = db.query(models.TasaDolar).first()
+    if tasa_obj:
+        tasa_obj.valor = tasa
+    else:
+        tasa_obj = models.TasaDolar(valor=tasa)
+        db.add(tasa_obj)
     db.commit()
     return RedirectResponse(url="/", status_code=303)
 
-@app.post("/eliminar/{p_id}")
-async def eliminar(p_id: int, db: Session = Depends(get_db)):
-    p = db.query(models.Producto).filter(models.Producto.id == p_id).first()
-    if p:
-        db.delete(p)
+@app.post("/eliminar/{producto_id}")
+def eliminar_producto(producto_id: int, db: Session = Depends(get_db)):
+    producto = db.query(models.Producto).filter(models.Producto.id == producto_id).first()
+    if producto:
+        db.delete(producto)
         db.commit()
     return RedirectResponse(url="/", status_code=303)
