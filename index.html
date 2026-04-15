@@ -2,142 +2,65 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Gystore | Panel</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        :root { --primary: #3b82f6; --dark: #0f172a; --bg: #f8fafc; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; display: flex; }
-        .sidebar { width: 250px; background: var(--dark); height: 100vh; color: white; padding: 20px; position: fixed; }
-        .sidebar h2 { color: var(--primary); }
-        .nav-btn { display: block; width: 100%; padding: 12px; margin: 10px 0; background: none; border: none; color: white; text-align: left; cursor: pointer; border-radius: 8px; }
-        .nav-btn:hover { background: #1e293b; }
-        .main-content { margin-left: 280px; padding: 40px; width: calc(100% - 280px); }
-        .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        .btn-add { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; float: right; font-weight: bold; }
-        #modalForm { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
-        .modal-content { background: white; width: 400px; margin: 100px auto; padding: 30px; border-radius: 15px; }
-        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
-        table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; margin-top: 20px; }
-        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
-        th { background: #f1f5f9; color: #64748b; font-size: 12px; text-transform: uppercase; }
-        .btn-del { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 18px; transition: 0.2s; }
-        .btn-del:hover { transform: scale(1.2); }
-    </style>
+    <title>JGYSTORE - Inventario</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
-<body>
+<body class="bg-light">
+    <div class="container py-5">
+        <h2 class="text-center mb-4">Gestión de Inventario JGYSTORE</h2>
 
-<div class="sidebar">
-    <h2>GYSTORE</h2>
-    <p>Gestión Adaptativa</p>
-    <hr style="opacity: 0.1; margin: 20px 0;">
-    <button class="nav-btn" onclick="showSection('dash')">📊 Dashboard</button>
-    <button class="nav-btn" onclick="showSection('inv')">📦 Inventario</button>
-</div>
-
-<div class="main-content">
-    <button class="btn-add" onclick="document.getElementById('modalForm').style.display='block'">+ Nuevo Producto</button>
-    
-    <div id="section-dash">
-        <h1>Dashboard General</h1>
-        <div class="card-grid">
-            <div class="card"><h3>TASA BCV</h3><h2 id="tasaText" style="color:var(--primary)">-- Bs.</h2></div>
-            <div class="card"><h3>PRODUCTOS</h3><h2 id="totalProd">0</h2></div>
-            <div class="card"><h3>ALERTAS</h3><h2 id="alertaCount" style="color:red">0</h2></div>
+        <div class="card shadow mb-5">
+            <div class="card-body">
+                <form action="/agregar" method="post" class="row g-3">
+                    <div class="col-md-4"><input type="text" name="nombre" class="form-control" placeholder="Producto" required></div>
+                    <div class="col-md-2"><input type="text" name="categoria" class="form-control" placeholder="Categoría" required></div>
+                    <div class="col-md-2"><input type="number" step="0.01" name="costo" class="form-control" placeholder="Costo USD" required></div>
+                    <div class="col-md-2"><input type="number" step="0.01" name="margen" class="form-control" placeholder="Margen %" required></div>
+                    <div class="col-md-1"><input type="number" name="stock" class="form-control" placeholder="Stock" required></div>
+                    <div class="col-md-1"><input type="number" name="stock_min" class="form-control" placeholder="Mín" required></div>
+                    <div class="col-12"><button type="submit" class="btn btn-primary w-100">Registrar Producto</button></div>
+                </form>
+            </div>
         </div>
-        <div class="card" style="max-width: 500px;">
-            <h3>Análisis de Stock</h3>
-            <canvas id="stockChart"></canvas>
-        </div>
-    </div>
 
-    <div id="section-inv" style="display:none">
-        <h1>Inventario de JGYSTORE</h1>
-        <div class="card">
-            <table>
-                <thead>
+        <div class="table-responsive bg-white p-3 shadow rounded">
+            <table class="table table-hover align-middle">
+                <thead class="table-dark">
                     <tr>
-                        <th>PRODUCTO</th>
-                        <th>STOCK</th>
-                        <th>REF. USD</th>
-                        <th>PRECIO BS.</th>
-                        <th>ESTADO</th>
-                        <th>ACCIONES</th>
+                        <th>Producto / Categoría</th>
+                        <th>Costo</th>
+                        <th>Venta</th>
+                        <th>Stock / Mín</th>
+                        <th>Acciones</th>
                     </tr>
                 </thead>
-                <tbody id="tablaBody"></tbody>
+                <tbody>
+                    {% for p in productos %}
+                    <tr>
+                        <form action="/editar/{{ p.id }}" method="post">
+                            <td>
+                                <input type="text" name="nombre" value="{{ p.nombre }}" class="form-control form-control-sm mb-1">
+                                <input type="text" name="categoria" value="{{ p.categoria }}" class="form-control form-control-sm text-muted">
+                            </td>
+                            <td><input type="number" step="0.01" name="costo" value="{{ p.costo_usd }}" class="form-control form-control-sm"></td>
+                            <td class="fw-bold text-success">${{ "%.2f"|format(p.costo_usd * (1 + p.margen_ganancia/100)) }}</td>
+                            <td>
+                                <input type="number" name="stock" value="{{ p.stock_actual }}" class="form-control form-control-sm mb-1">
+                                <input type="number" name="stock_min" value="{{ p.stock_minimo }}" class="form-control form-control-sm">
+                            </td>
+                            <td class="text-center">
+                                <input type="hidden" name="margen" value="{{ p.margen_ganancia }}">
+                                <button type="submit" class="btn btn-sm btn-outline-success mb-1 w-100">Actualizar</button>
+                            </form>
+                                <form action="/eliminar/{{ p.id }}" method="post">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger w-100">Borrar</button>
+                                </form>
+                            </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
             </table>
         </div>
     </div>
-</div>
-
-<div id="modalForm">
-    <div class="modal-content">
-        <h3>Registrar Mercancía</h3>
-        <form action="/crear-producto-web" method="post">
-            <input type="text" name="nombre" placeholder="Nombre del Producto" required>
-            <input type="number" step="0.01" name="costo" placeholder="Costo Unitario ($)" required>
-            <input type="number" name="margen" value="30" placeholder="Margen %">
-            <input type="number" name="stock" placeholder="Cantidad Inicial" required>
-            <button type="submit" class="btn-add" style="float:none; width:100%; margin-top:10px;">Guardar</button>
-            <button type="button" onclick="document.getElementById('modalForm').style.display='none'" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color: #64748b;">Cancelar</button>
-        </form>
-    </div>
-</div>
-
-<script>
-    let miGrafica = null;
-
-    function showSection(section) {
-        document.getElementById('section-dash').style.display = section === 'dash' ? 'block' : 'none';
-        document.getElementById('section-inv').style.display = section === 'inv' ? 'block' : 'none';
-    }
-
-    async function cargarDatos() {
-        try {
-            const response = await fetch('/productos');
-            const res = await response.json();
-            const productos = res.productos || [];
-            const tasa = res.tasa_actual || 0;
-
-            document.getElementById('tasaText').innerText = tasa.toFixed(2) + " Bs.";
-            document.getElementById('totalProd').innerText = res.total_productos || 0;
-            document.getElementById('alertaCount').innerText = res.alertas || 0;
-
-            const tbody = document.getElementById('tablaBody');
-            tbody.innerHTML = '';
-            
-            productos.forEach(p => {
-                tbody.innerHTML += `<tr>
-                    <td><b>${p.nombre}</b></td>
-                    <td>${p.stock}</td>
-                    <td>$${p.ref_usd.toFixed(2)}</td>
-                    <td style="color:var(--primary); font-weight:bold;">${p.precio_bs.toFixed(2)} Bs.</td>
-                    <td><span style="font-size:12px">${p.estado}</span></td>
-                    <td>
-                        <form action="/eliminar-producto/${p.id}" method="post" onsubmit="return confirm('¿Seguro que deseas eliminar este producto?')">
-                            <button type="submit" class="btn-del">🗑️</button>
-                        </form>
-                    </td>
-                </tr>`;
-            });
-
-            if (productos.length > 0) {
-                const ctx = document.getElementById('stockChart').getContext('2d');
-                if (miGrafica) miGrafica.destroy();
-                miGrafica = new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: productos.map(p => p.nombre),
-                        datasets: [{ data: productos.map(p => p.stock), backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'] }]
-                    }
-                });
-            }
-        } catch (e) { console.log(e); }
-    }
-
-    cargarDatos();
-    setInterval(cargarDatos, 30000);
-</script>
 </body>
 </html>

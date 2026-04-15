@@ -1,16 +1,16 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime
+from sqlalchemy import Column, Integer, String, Float
 from database import Base
-from datetime import datetime
 
 class Producto(Base):
     __tablename__ = "productos"
+
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, nullable=False)
-    categoria = Column(String)
+    categoria = Column(String, nullable=False)
     costo_usd = Column(Float, nullable=False)
-    margen_ganancia = Column(Float, default=30.0)
+    margen_ganancia = Column(Float, nullable=False)
     stock_actual = Column(Integer, default=0)
-    stock_minimo = Column(Integer, default=2)
+    stock_minimo = Column(Integer, default=0)
 
 class Tasa(Base):
     __tablename__ = "tasas"
