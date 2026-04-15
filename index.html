@@ -2,14 +2,14 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Gystore | Panel de Control</title>
+    <title>Gystore | Panel</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --primary: #3b82f6; --dark: #0f172a; --bg: #f8fafc; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; display: flex; }
         .sidebar { width: 250px; background: var(--dark); height: 100vh; color: white; padding: 20px; position: fixed; }
         .sidebar h2 { color: var(--primary); }
-        .nav-btn { display: block; width: 100%; padding: 12px; margin: 10px 0; background: none; border: none; color: white; text-align: left; cursor: pointer; border-radius: 8px; font-size: 16px; }
+        .nav-btn { display: block; width: 100%; padding: 12px; margin: 10px 0; background: none; border: none; color: white; text-align: left; cursor: pointer; border-radius: 8px; }
         .nav-btn:hover { background: #1e293b; }
         .main-content { margin-left: 280px; padding: 40px; width: calc(100% - 280px); }
         .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
@@ -20,18 +20,19 @@
         input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
         table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; margin-top: 20px; }
         th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
-        th { background: #f1f5f9; color: #64748b; text-transform: uppercase; font-size: 12px; }
+        th { background: #f1f5f9; color: #64748b; font-size: 12px; text-transform: uppercase; }
+        .btn-del { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 18px; transition: 0.2s; }
+        .btn-del:hover { transform: scale(1.2); }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
     <h2>GYSTORE</h2>
-    <p>Sistema de Gestión Adaptativa</p>
-    <hr style="opacity: 0.2;">
+    <p>Gestión Adaptativa</p>
+    <hr style="opacity: 0.1; margin: 20px 0;">
     <button class="nav-btn" onclick="showSection('dash')">📊 Dashboard</button>
     <button class="nav-btn" onclick="showSection('inv')">📦 Inventario</button>
-    <button class="nav-btn" onclick="alert('Generando reporte PDF...')">📋 Reportes</button>
 </div>
 
 <div class="main-content">
@@ -40,26 +41,31 @@
     <div id="section-dash">
         <h1>Dashboard General</h1>
         <div class="card-grid">
-            <div class="card"><h3>TASA OFICIAL BCV</h3><h2 id="tasaText" style="color:var(--primary)">-- Bs.</h2></div>
-            <div class="card"><h3>TOTAL PRODUCTOS</h3><h2 id="totalProd">0</h2></div>
-            <div class="card"><h3>ALERTAS CRÍTICAS</h3><h2 id="alertaCount" style="color:red">0</h2></div>
+            <div class="card"><h3>TASA BCV</h3><h2 id="tasaText" style="color:var(--primary)">-- Bs.</h2></div>
+            <div class="card"><h3>PRODUCTOS</h3><h2 id="totalProd">0</h2></div>
+            <div class="card"><h3>ALERTAS</h3><h2 id="alertaCount" style="color:red">0</h2></div>
         </div>
         <div class="card" style="max-width: 500px;">
-            <h3>Distribución de Stock</h3>
+            <h3>Análisis de Stock</h3>
             <canvas id="stockChart"></canvas>
         </div>
     </div>
 
     <div id="section-inv" style="display:none">
-        <h1>Lista de Mercancía</h1>
+        <h1>Inventario de JGYSTORE</h1>
         <div class="card">
             <table>
                 <thead>
-                    <tr><th>PRODUCTO</th><th>STOCK</th><th>REF. USD</th><th>PRECIO BS.</th><th>ESTADO</th></tr>
+                    <tr>
+                        <th>PRODUCTO</th>
+                        <th>STOCK</th>
+                        <th>REF. USD</th>
+                        <th>PRECIO BS.</th>
+                        <th>ESTADO</th>
+                        <th>ACCIONES</th>
+                    </tr>
                 </thead>
-                <tbody id="tablaBody">
-                    <tr><td colspan="5" style="text-align:center">Cargando datos...</td></tr>
-                </tbody>
+                <tbody id="tablaBody"></tbody>
             </table>
         </div>
     </div>
@@ -67,13 +73,13 @@
 
 <div id="modalForm">
     <div class="modal-content">
-        <h3>Registrar Nuevo Producto</h3>
+        <h3>Registrar Mercancía</h3>
         <form action="/crear-producto-web" method="post">
-            <input type="text" name="nombre" placeholder="Nombre (Ej: Mouse)" required>
-            <input type="number" step="0.01" name="costo" placeholder="Costo en USD" required>
+            <input type="text" name="nombre" placeholder="Nombre del Producto" required>
+            <input type="number" step="0.01" name="costo" placeholder="Costo Unitario ($)" required>
             <input type="number" name="margen" value="30" placeholder="Margen %">
             <input type="number" name="stock" placeholder="Cantidad Inicial" required>
-            <button type="submit" class="btn-add" style="float:none; width:100%; margin-top:10px;">Guardar Producto</button>
+            <button type="submit" class="btn-add" style="float:none; width:100%; margin-top:10px;">Guardar</button>
             <button type="button" onclick="document.getElementById('modalForm').style.display='none'" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color: #64748b;">Cancelar</button>
         </form>
     </div>
@@ -89,63 +95,48 @@
 
     async function cargarDatos() {
         try {
-            // Quitamos la barra final para evitar el error 405
             const response = await fetch('/productos');
-            if (!response.ok) throw new Error("Error en servidor");
-            
             const res = await response.json();
-            
-            // Verificamos que res.productos exista, sino enviamos lista vacía
             const productos = res.productos || [];
             const tasa = res.tasa_actual || 0;
 
-            // Actualizar Tarjetas
-            document.getElementById('tasaText').innerText = tasa > 0 ? tasa.toFixed(2) + " Bs." : "-- Bs.";
+            document.getElementById('tasaText').innerText = tasa.toFixed(2) + " Bs.";
             document.getElementById('totalProd').innerText = res.total_productos || 0;
             document.getElementById('alertaCount').innerText = res.alertas || 0;
 
-            // Actualizar Tabla
             const tbody = document.getElementById('tablaBody');
             tbody.innerHTML = '';
             
-            if (productos.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">No hay mercancía registrada.</td></tr>';
-            } else {
-                productos.forEach(p => {
-                    tbody.innerHTML += `<tr>
-                        <td><b>${p.nombre}</b></td>
-                        <td>${p.stock}</td>
-                        <td>$${p.ref_usd.toFixed(2)}</td>
-                        <td style="color:var(--primary); font-weight:bold;">${p.precio_bs.toFixed(2)} Bs.</td>
-                        <td><span style="padding:4px 8px; border-radius:5px; background:#f1f5f9; font-size:12px">${p.estado}</span></td>
-                    </tr>`;
-                });
-            }
-            
-            // Gráfica de Stock
+            productos.forEach(p => {
+                tbody.innerHTML += `<tr>
+                    <td><b>${p.nombre}</b></td>
+                    <td>${p.stock}</td>
+                    <td>$${p.ref_usd.toFixed(2)}</td>
+                    <td style="color:var(--primary); font-weight:bold;">${p.precio_bs.toFixed(2)} Bs.</td>
+                    <td><span style="font-size:12px">${p.estado}</span></td>
+                    <td>
+                        <form action="/eliminar-producto/${p.id}" method="post" onsubmit="return confirm('¿Seguro que deseas eliminar este producto?')">
+                            <button type="submit" class="btn-del">🗑️</button>
+                        </form>
+                    </td>
+                </tr>`;
+            });
+
             if (productos.length > 0) {
                 const ctx = document.getElementById('stockChart').getContext('2d');
-                if (miGrafica) { miGrafica.destroy(); }
+                if (miGrafica) miGrafica.destroy();
                 miGrafica = new Chart(ctx, {
                     type: 'doughnut',
                     data: {
                         labels: productos.map(p => p.nombre),
-                        datasets: [{ 
-                            data: productos.map(p => p.stock), 
-                            backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'] 
-                        }]
-                    },
-                    options: { responsive: true }
+                        datasets: [{ data: productos.map(p => p.stock), backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'] }]
+                    }
                 });
             }
-        } catch (error) {
-            console.error("Error en la carga:", error);
-        }
+        } catch (e) { console.log(e); }
     }
 
-    // Carga inicial
     cargarDatos();
-    // Auto-actualizar cada 30 segundos
     setInterval(cargarDatos, 30000);
 </script>
 </body>

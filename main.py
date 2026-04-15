@@ -7,14 +7,9 @@ from database import SessionLocal, engine
 from datetime import datetime
 import httpx
 
-# Inicialización de la Base de Datos
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Gystore - Sistema de Gestión")
-
-# Seguridad
-USUARIO_ADMIN = "admin"
-CLAVE_ADMIN = "Gystore2026"
+app = FastAPI(title="Jgystore - Sistema de Gestión")
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,7 +42,7 @@ async def obtener_tasa_nube():
 def ver_panel_control():
     return FileResponse('index.html')
 
-@app.get("/productos/")
+@app.get("/productos")
 async def obtener_productos(db: Session = Depends(get_db)):
     tasa_api = await obtener_tasa_nube()
     if tasa_api:
@@ -68,14 +63,14 @@ async def obtener_productos(db: Session = Depends(get_db)):
             "stock": p.stock_actual,
             "ref_usd": round(pv_usd, 2),
             "precio_bs": round(pv_usd * tasa, 2),
-            "estado": "✅ DISPONIBLE" if p.stock_actual > p.stock_minimo else "❗ RECOMPRAR"
+            "estado": "✅ DISPONIBLE" if p.stock_actual > 5 else "❗ RECOMPRAR"
         })
     
     return {
         "productos": res,
         "tasa_actual": tasa,
         "total_productos": len(res),
-        "alertas": len([p for p in productos if p.stock_actual <= p.stock_minimo])
+        "alertas": len([p for p in productos if p.stock_actual <= 5])
     }
 
 @app.post("/crear-producto-web")
@@ -92,4 +87,13 @@ async def crear_web(
     )
     db.add(nuevo)
     db.commit()
+    return RedirectResponse(url="/", status_code=303)
+
+# --- NUEVA FUNCIÓN PARA ELIMINAR ---
+@app.post("/eliminar-producto/{producto_id}")
+async def eliminar_producto(producto_id: int, db: Session = Depends(get_db)):
+    producto = db.query(models.Producto).filter(models.Producto.id == producto_id).first()
+    if producto:
+        db.delete(producto)
+        db.commit()
     return RedirectResponse(url="/", status_code=303)
